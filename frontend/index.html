@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Róża Różańcowa</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .modal-backdrop { background: rgba(0,0,0,0.5); }
+    .btn { @apply px-3 py-1.5 rounded text-sm font-medium transition; }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 min-h-screen">
+
+<div id="app" class="max-w-6xl mx-auto p-4 sm:p-6">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between mb-6 pb-4 border-b border-stone-200">
+    <h1 class="text-2xl font-semibold flex items-center gap-2">
+      <span>🌹</span>
+      <span id="header-title">Róże Różańcowe</span>
+    </h1>
+    <div class="flex items-center gap-3">
+      <button id="back-to-list-btn" class="hidden text-sm text-stone-600 hover:text-stone-900">
+        ← Wróć do listy
+      </button>
+      <span id="user-info" class="hidden text-sm text-stone-600"></span>
+      <button id="admin-panel-btn" class="hidden text-sm text-amber-700 hover:text-amber-900">
+        Panel admina
+      </button>
+      <button id="logout-btn" class="hidden text-sm text-stone-600 hover:text-stone-900">
+        Wyloguj
+      </button>
+    </div>
+  </header>
+
+  <!-- VIEW 0: Login/Register -->
+  <section id="view-auth" class="hidden max-w-md mx-auto mt-12">
+    <div class="bg-white rounded-lg shadow-sm border border-stone-200 p-6">
+      <div class="flex mb-4 border-b border-stone-200">
+        <button id="auth-tab-login" class="auth-tab active flex-1 pb-3 text-sm">Logowanie</button>
+        <button id="auth-tab-register" class="auth-tab flex-1 pb-3 text-sm">Rejestracja</button>
+      </div>
+
+      <form id="auth-login-form" class="space-y-3" onsubmit="doLogin(event)">
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">E-mail</label>
+          <input type="email" name="email" required class="w-full border border-stone-300 rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Hasło</label>
+          <input type="password" name="password" required class="w-full border border-stone-300 rounded px-3 py-2" />
+        </div>
+        <button type="submit" class="w-full bg-emerald-600 text-white py-2 rounded font-medium hover:bg-emerald-700">
+          Zaloguj
+        </button>
+        <div class="text-center text-xs text-stone-500 my-3">— lub —</div>
+        <a href="/api/auth/google/login" class="block text-center w-full border border-stone-300 py-2 rounded text-sm hover:bg-stone-50">
+          Zaloguj przez Google
+        </a>
+      </form>
+
+      <form id="auth-register-form" class="space-y-3 hidden" onsubmit="doRegister(event)">
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Imię i nazwisko</label>
+          <input type="text" name="full_name" class="w-full border border-stone-300 rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">E-mail</label>
+          <input type="email" name="email" required class="w-full border border-stone-300 rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Hasło (min. 6 znaków)</label>
+          <input type="password" name="password" required minlength="6" class="w-full border border-stone-300 rounded px-3 py-2" />
+        </div>
+        <button type="submit" class="w-full bg-emerald-600 text-white py-2 rounded font-medium hover:bg-emerald-700">
+          Zarejestruj się
+        </button>
+        <p class="text-xs text-stone-500 text-center">Po rejestracji konto czeka na zatwierdzenie przez administratora.</p>
+      </form>
+
+      <div id="auth-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2"></div>
+    </div>
+  </section>
+
+  <!-- VIEW: Awaiting approval -->
+  <section id="view-pending" class="hidden max-w-md mx-auto mt-12">
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
+      <h2 class="text-lg font-semibold mb-2">⏳ Konto oczekuje na zatwierdzenie</h2>
+      <p class="text-sm text-stone-700 mb-4">
+        Twoje konto zostało utworzone. Administrator musi je zatwierdzić,
+        zanim uzyskasz dostęp.
+      </p>
+      <p class="text-xs text-stone-500" id="pending-email"></p>
+      <button onclick="doLogout()" class="mt-4 text-sm text-stone-600 hover:text-stone-900">
+        Wyloguj
+      </button>
+    </div>
+  </section>
+
+  <!-- VIEW: Admin panel -->
+  <section id="view-admin" class="hidden">
+    <h2 class="text-lg font-semibold mb-4">Panel administratora</h2>
+
+    <div class="bg-white rounded-lg shadow-sm border border-stone-200 p-4 mb-4">
+      <h3 class="font-semibold mb-3">Konta oczekujące na zatwierdzenie</h3>
+      <div id="admin-pending-list">Ładowanie...</div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+      <h3 class="font-semibold mb-3">Wszystkie konta</h3>
+      <div id="admin-all-list">Ładowanie...</div>
+    </div>
+  </section>
+
+  <!-- VIEW 1: Rose list -->
+  <section id="view-list">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg text-stone-700">Twoje róże</h2>
+      <button onclick="openNewRoseModal()" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-emerald-700">
+        + Nowa róża
+      </button>
+    </div>
+    <div id="roses-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="text-stone-500 text-sm">Ładowanie...</div>
+    </div>
+  </section>
+
+  <!-- VIEW 2: Rose details (tabs) -->
+  <section id="view-rose" class="hidden">
+    <div class="mb-2 text-sm text-stone-500" id="rose-subtitle"></div>
+    <h2 id="rose-name" class="text-xl font-semibold mb-4"></h2>
+
+    <!-- Tabs -->
+    <div class="border-b border-stone-200 mb-4">
+      <nav class="flex gap-1">
+        <button class="tab-btn active" data-tab="month">Miesiąc</button>
+        <button class="tab-btn" data-tab="composition">Skład</button>
+        <button class="tab-btn" data-tab="history">Historia</button>
+        <button class="tab-btn" data-tab="png">PNG</button>
+        <button class="tab-btn" data-tab="settings">Ustawienia</button>
+      </nav>
+    </div>
+
+    <!-- Tab: Month (main view) -->
+    <div id="tab-month" class="tab-content">
+      <div class="flex flex-wrap items-end gap-3 mb-4">
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Rok</label>
+          <input type="number" id="month-year" class="border border-stone-300 rounded px-3 py-1.5 w-24" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Miesiąc</label>
+          <select id="month-month" class="border border-stone-300 rounded px-3 py-1.5"></select>
+        </div>
+        <button onclick="loadMonth()" class="bg-stone-700 text-white px-4 py-1.5 rounded text-sm hover:bg-stone-800">
+          Pokaż
+        </button>
+      </div>
+      <div id="month-content" class="bg-white rounded shadow-sm border border-stone-200 overflow-hidden"></div>
+    </div>
+
+    <!-- Tab: Composition -->
+    <div id="tab-composition" class="tab-content hidden">
+      <div class="mb-3 text-sm text-stone-600">
+        Skład obowiązujący w dniu:
+        <input type="date" id="composition-date" class="border border-stone-300 rounded px-2 py-1 text-sm ml-1" />
+        <button onclick="loadComposition()" class="ml-2 text-sm text-blue-600 hover:underline">Pokaż</button>
+      </div>
+      <div id="composition-table" class="bg-white rounded shadow-sm border border-stone-200 overflow-hidden"></div>
+    </div>
+
+    <!-- Tab: History -->
+    <div id="tab-history" class="tab-content hidden">
+      <div class="flex items-end gap-3 mb-3">
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Pozycja</label>
+          <select id="history-position" class="border border-stone-300 rounded px-3 py-1.5"></select>
+        </div>
+        <button onclick="loadHistory()" class="bg-stone-700 text-white px-4 py-1.5 rounded text-sm hover:bg-stone-800">
+          Pokaż historię
+        </button>
+      </div>
+      <div id="history-table" class="bg-white rounded shadow-sm border border-stone-200 overflow-hidden"></div>
+    </div>
+
+    <!-- Tab: PNG -->
+    <div id="tab-png" class="tab-content hidden">
+      <div class="flex flex-wrap items-end gap-3 mb-4">
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Od (rok-miesiąc)</label>
+          <div class="flex gap-1">
+            <input type="number" id="png-year" class="border border-stone-300 rounded px-2 py-1.5 w-24" />
+            <select id="png-month" class="border border-stone-300 rounded px-2 py-1.5"></select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-stone-600 mb-1">Do (opcjonalnie - zakres)</label>
+          <div class="flex gap-1">
+            <input type="number" id="png-year-to" class="border border-stone-300 rounded px-2 py-1.5 w-24" placeholder="—" />
+            <select id="png-month-to" class="border border-stone-300 rounded px-2 py-1.5">
+              <option value="">—</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="loadPng()" class="bg-emerald-600 text-white px-4 py-1.5 rounded text-sm hover:bg-emerald-700">
+          Generuj PNG
+        </button>
+        <a id="png-download" class="hidden bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700" download="roza.png">
+          ⬇ Pobierz
+        </a>
+      </div>
+      <div id="png-result" class="bg-white rounded shadow-sm border border-stone-200 overflow-auto p-4"></div>
+    </div>
+
+    <!-- Tab: Settings -->
+    <div id="tab-settings" class="tab-content hidden">
+      <div class="bg-white rounded shadow-sm border border-stone-200 p-4 max-w-2xl">
+        <h3 class="font-semibold mb-3">Ustawienia róży</h3>
+        <form id="settings-form" class="space-y-3" onsubmit="saveSettings(event)">
+          <div>
+            <label class="block text-xs text-stone-600 mb-1">Nazwa</label>
+            <input type="text" name="name" class="w-full border border-stone-300 rounded px-3 py-1.5" required />
+          </div>
+          <div>
+            <label class="block text-xs text-stone-600 mb-1">Podtytuł</label>
+            <input type="text" name="subtitle" class="w-full border border-stone-300 rounded px-3 py-1.5" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-stone-600 mb-1">Data startu (kotwica obecnego składu)</label>
+              <input type="date" name="start_date" class="w-full border border-stone-300 rounded px-3 py-1.5" required />
+            </div>
+            <div>
+              <label class="block text-xs text-stone-600 mb-1">Dzień zmiany</label>
+              <input type="number" name="change_day" min="1" max="31" class="w-full border border-stone-300 rounded px-3 py-1.5" required />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-stone-600 mb-1">Wykluczone miesiące</label>
+            <div id="excluded-months-checks" class="grid grid-cols-4 sm:grid-cols-6 gap-2"></div>
+          </div>
+          <div class="flex justify-between pt-3 border-t border-stone-200">
+            <button type="button" onclick="deleteRose()" class="text-red-600 text-sm hover:underline">
+              Usuń różę
+            </button>
+            <button type="submit" class="bg-emerald-600 text-white px-4 py-1.5 rounded text-sm hover:bg-emerald-700">
+              Zapisz
+            </button>
+          </div>
+        </form>
+
+        <hr class="my-6" />
+
+        <h3 class="font-semibold mb-3">Osoby w róży (wszystkie)</h3>
+        <div class="mb-3 flex gap-2">
+          <input type="text" id="new-person-name" placeholder="Nazwisko Imię" class="flex-1 border border-stone-300 rounded px-3 py-1.5 text-sm" />
+          <button onclick="addPerson()" class="bg-stone-700 text-white px-3 py-1.5 rounded text-sm hover:bg-stone-800">
+            + Dodaj osobę
+          </button>
+        </div>
+        <div id="persons-list" class="space-y-1"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL: new rose -->
+<div id="modal-new-rose" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-5">
+    <h3 class="text-lg font-semibold mb-4">Nowa róża</h3>
+    <form id="new-rose-form" class="space-y-3" onsubmit="createRose(event)">
+      <input type="text" name="name" placeholder="Nazwa róży" required class="w-full border border-stone-300 rounded px-3 py-1.5" />
+      <input type="text" name="subtitle" placeholder="Podtytuł (opcjonalnie)" class="w-full border border-stone-300 rounded px-3 py-1.5" />
+      <div>
+        <label class="block text-xs text-stone-600 mb-1">Data startu</label>
+        <input type="date" name="start_date" required class="w-full border border-stone-300 rounded px-3 py-1.5" />
+        <p class="text-xs text-stone-500 mt-1">Dzień zmiany tajemnic, od którego liczy się rotacja.</p>
+      </div>
+      <div>
+        <label class="block text-xs text-stone-600 mb-1">Dzień zmiany w miesiącu</label>
+        <input type="number" name="change_day" value="25" min="1" max="31" required class="w-full border border-stone-300 rounded px-3 py-1.5" />
+      </div>
+      <div>
+        <label class="block text-xs text-stone-600 mb-1">Wykluczone miesiące</label>
+        <div id="new-rose-excluded" class="grid grid-cols-4 gap-1"></div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('modal-new-rose')" class="text-stone-600 px-3 py-1.5 text-sm">Anuluj</button>
+        <button type="submit" class="bg-emerald-600 text-white px-4 py-1.5 rounded text-sm hover:bg-emerald-700">Utwórz</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: edit position -->
+<div id="modal-edit-position" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-5">
+    <h3 class="text-lg font-semibold mb-1">Edycja pozycji <span id="edit-position-num"></span></h3>
+    <p class="text-sm text-stone-500 mb-4">Obecnie: <span id="edit-position-current" class="font-medium"></span></p>
+    <form onsubmit="savePosition(event)" class="space-y-3">
+      <div>
+        <label class="block text-xs text-stone-600 mb-1">Wybierz osobę</label>
+        <select id="edit-position-person" class="w-full border border-stone-300 rounded px-3 py-1.5">
+          <option value="">(wolne miejsce)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-stone-600 mb-1">Od kiedy ma obowiązywać</label>
+        <select id="edit-position-when" class="w-full border border-stone-300 rounded px-3 py-1.5">
+          <option value="today">Od dziś</option>
+          <option value="next" selected>Od następnej zmiany tajemnic</option>
+          <option value="custom">Wybierz datę...</option>
+        </select>
+        <input type="date" id="edit-position-custom-date" class="w-full border border-stone-300 rounded px-3 py-1.5 mt-2 hidden" />
+        <p id="edit-position-date-hint" class="text-xs text-stone-500 mt-1"></p>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('modal-edit-position')" class="text-stone-600 px-3 py-1.5 text-sm">Anuluj</button>
+        <button type="submit" class="bg-emerald-600 text-white px-4 py-1.5 rounded text-sm hover:bg-emerald-700">Zapisz</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .tab-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #57534e;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab-btn.active {
+    color: #047857;
+    border-bottom-color: #059669;
+    font-weight: 500;
+  }
+  .tab-btn:hover:not(.active) {
+    color: #292524;
+  }
+  .auth-tab {
+    color: #57534e;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    font-weight: 500;
+  }
+  .auth-tab.active {
+    color: #047857;
+    border-bottom-color: #059669;
+  }
+</style>
+
+<script>
+// ============ STATE ============
+const API = '/api';
+let state = {
+  currentRoseId: null,
+  currentRose: null,
+  persons: [],
+  editingPosition: null,
+  monthChangeDates: {}, // mapa year-month -> period_start, do podpowiedzi w edytorze
+};
+
+const MONTH_NAMES = ['', 'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+                     'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+
+// ============ UTILS ============
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Błąd' }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function fillMonthSelect(sel, includeEmpty = false) {
+  if (includeEmpty) {
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = '—';
+    sel.appendChild(opt);
+  }
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = MONTH_NAMES[m];
+    sel.appendChild(opt);
+  }
+}
+
+function showModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// ============ VIEW: ROSE LIST ============
+async function loadRoses() {
+  const grid = document.getElementById('roses-grid');
+  grid.innerHTML = '<div class="text-stone-500 text-sm col-span-full">Ładowanie...</div>';
+  try {
+    const roses = await api('/roses');
+    if (roses.length === 0) {
+      grid.innerHTML = '<div class="text-stone-500 text-sm col-span-full">Nie masz jeszcze róż. Kliknij „+ Nowa róża”, aby rozpocząć.</div>';
+      return;
+    }
+    grid.innerHTML = roses.map(r => `
+      <div class="bg-white rounded-lg shadow-sm border border-stone-200 p-4 cursor-pointer hover:shadow-md transition" onclick="openRose(${r.id})">
+        <h3 class="font-semibold mb-1">${escapeHtml(r.name)}</h3>
+        ${r.subtitle ? `<p class="text-sm text-stone-500 mb-2">${escapeHtml(r.subtitle)}</p>` : ''}
+        <p class="text-xs text-stone-400">Zmiana ${r.change_day}-go każdego miesiąca</p>
+      </div>
+    `).join('');
+  } catch (e) {
+    grid.innerHTML = `<div class="text-red-600 text-sm">Błąd: ${e.message}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+// ============ MODAL: NEW ROSE ============
+function openNewRoseModal() {
+  const wrap = document.getElementById('new-rose-excluded');
+  wrap.innerHTML = '';
+  for (let m = 1; m <= 12; m++) {
+    const checked = (m === 7 || m === 8) ? 'checked' : '';
+    wrap.insertAdjacentHTML('beforeend', `
+      <label class="flex items-center gap-1 text-sm">
+        <input type="checkbox" value="${m}" ${checked} />
+        ${MONTH_NAMES[m].substring(0, 3)}
+      </label>
+    `);
+  }
+  document.querySelector('#new-rose-form input[name="start_date"]').value = new Date().toISOString().slice(0, 10);
+  showModal('modal-new-rose');
+}
+
+async function createRose(e) {
+  e.preventDefault();
+  const f = e.target;
+  const excluded = Array.from(f.querySelectorAll('#new-rose-excluded input:checked')).map(c => parseInt(c.value));
+  const data = {
+    name: f.name.value,
+    subtitle: f.subtitle.value,
+    start_date: f.start_date.value,
+    change_day: parseInt(f.change_day.value),
+    excluded_months: excluded,
+  };
+  try {
+    const r = await api('/roses', { method: 'POST', body: JSON.stringify(data) });
+    closeModal('modal-new-rose');
+    await loadRoses();
+    openRose(r.id);
+  } catch (err) {
+    alert('Błąd: ' + err.message);
+  }
+}
+
+// ============ VIEW: ROSE DETAILS ============
+async function openRose(roseId) {
+  state.currentRoseId = roseId;
+  document.getElementById('view-list').classList.add('hidden');
+  document.getElementById('view-rose').classList.remove('hidden');
+  document.getElementById('back-to-list-btn').classList.remove('hidden');
+  document.getElementById('header-title').textContent = 'Róża';
+
+  try {
+    state.currentRose = await api(`/roses/${roseId}`);
+    state.persons = await api(`/roses/${roseId}/persons?include_inactive=false`);
+    document.getElementById('rose-name').textContent = state.currentRose.name;
+    document.getElementById('rose-subtitle').textContent = state.currentRose.subtitle || '';
+
+    // Default to current month
+    initMonthSelectors();
+    setActiveTab('month');
+    await loadMonth();
+  } catch (e) {
+    alert('Błąd: ' + e.message);
+  }
+}
+
+function initMonthSelectors() {
+  const today = new Date();
+  // Tab Month
+  const ySel = document.getElementById('month-year');
+  const mSel = document.getElementById('month-month');
+  ySel.value = today.getFullYear();
+  if (mSel.options.length === 0) fillMonthSelect(mSel);
+  mSel.value = today.getMonth() + 1;
+
+  // Tab PNG
+  document.getElementById('png-year').value = today.getFullYear();
+  const pmSel = document.getElementById('png-month');
+  if (pmSel.options.length === 0) fillMonthSelect(pmSel);
+  pmSel.value = today.getMonth() + 1;
+  const pm2 = document.getElementById('png-month-to');
+  if (pm2.options.length <= 1) fillMonthSelect(pm2);
+  document.getElementById('png-year-to').value = '';
+  pm2.value = '';
+
+  // Composition
+  document.getElementById('composition-date').value = today.toISOString().slice(0, 10);
+
+  // History
+  const hSel = document.getElementById('history-position');
+  hSel.innerHTML = '';
+  for (let p = 1; p <= 20; p++) {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = `Pozycja ${p}`;
+    hSel.appendChild(opt);
+  }
+}
+
+// ============ TABS ============
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+});
+
+function setActiveTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  if (name === 'settings') loadSettings();
+  if (name === 'composition') loadComposition();
+}
+
+// ============ TAB: MONTH ============
+async function loadMonth() {
+  const year = parseInt(document.getElementById('month-year').value);
+  const month = parseInt(document.getElementById('month-month').value);
+  const box = document.getElementById('month-content');
+  box.innerHTML = '<div class="p-4 text-stone-500 text-sm">Ładowanie...</div>';
+  try {
+    const data = await api(`/roses/${state.currentRoseId}/month?year=${year}&month=${month}`);
+    state.monthChangeDates[`${year}-${month}`] = data.period_start;
+    renderMonthTable(data);
+  } catch (e) {
+    box.innerHTML = `<div class="p-4 text-red-600 text-sm">${e.message}</div>`;
+  }
+}
+
+function renderMonthTable(data) {
+  const box = document.getElementById('month-content');
+  const periodLabel = `${data.month_name} (${formatPeriod(data.period_start, data.period_end)})`;
+  let html = `
+    <div class="p-3 bg-stone-50 border-b border-stone-200 text-sm text-stone-600">
+      Okres: <strong>${periodLabel}</strong>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-emerald-100 text-stone-700">
+          <th class="px-2 py-2 w-12 text-center font-medium">Lp.</th>
+          <th class="px-3 py-2 text-left font-medium">Nazwisko Imię</th>
+          <th class="px-3 py-2 text-center font-medium">Tajemnica</th>
+          <th class="px-3 py-2 w-20"></th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  for (const e of data.entries) {
+    const isRadosna = e.mystery === 'I Radosna';
+    const rowBg = isRadosna ? 'bg-amber-50' : '';
+    const personHtml = e.person_name
+      ? escapeHtml(e.person_name)
+      : '<span class="text-stone-400 italic">— wolne —</span>';
+    html += `
+      <tr class="border-t border-stone-100 ${rowBg}">
+        <td class="px-2 py-2 text-center text-stone-500">${e.position}</td>
+        <td class="px-3 py-2 font-medium">${personHtml}</td>
+        <td class="px-3 py-2 text-center">${escapeHtml(e.mystery)}</td>
+        <td class="px-3 py-2 text-right">
+          <button onclick="openEditPosition(${e.position})" class="text-xs text-blue-600 hover:underline">edytuj</button>
+        </td>
+      </tr>
+    `;
+  }
+  html += '</tbody></table>';
+  box.innerHTML = html;
+}
+
+function formatPeriod(start, end) {
+  const s = new Date(start), e = new Date(end);
+  return `${s.getDate()}.${roman(s.getMonth()+1)} – ${e.getDate()}.${roman(e.getMonth()+1)}`;
+}
+function roman(n) {
+  return ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][n];
+}
+
+// ============ POSITION EDIT ============
+async function openEditPosition(position) {
+  state.editingPosition = position;
+  document.getElementById('edit-position-num').textContent = position;
+
+  // Current person
+  const today = new Date().toISOString().slice(0, 10);
+  const comp = await api(`/roses/${state.currentRoseId}/composition?at=${today}`);
+  const current = comp.find(c => c.position === position);
+  document.getElementById('edit-position-current').textContent =
+    current && current.person_name ? current.person_name : '— wolne —';
+
+  // People list
+  const sel = document.getElementById('edit-position-person');
+  sel.innerHTML = '<option value="">(wolne miejsce)</option>';
+  for (const p of state.persons) {
+    const opt = document.createElement('option');
+    opt.value = p.id; opt.textContent = p.full_name;
+    if (current && current.person_id === p.id) opt.selected = true;
+    sel.appendChild(opt);
+  }
+
+  // "Effective from"
+  const whenSel = document.getElementById('edit-position-when');
+  whenSel.value = 'next';
+  document.getElementById('edit-position-custom-date').classList.add('hidden');
+  whenSel.onchange = updateEditWhenHint;
+  await updateEditWhenHint();
+
+  showModal('modal-edit-position');
+}
+
+async function updateEditWhenHint() {
+  const when = document.getElementById('edit-position-when').value;
+  const customInput = document.getElementById('edit-position-custom-date');
+  const hint = document.getElementById('edit-position-date-hint');
+
+  customInput.classList.toggle('hidden', when !== 'custom');
+
+  if (when === 'today') {
+    hint.textContent = `Od dziś: ${new Date().toISOString().slice(0, 10)}`;
+  } else if (when === 'next') {
+    // Find the next change date - query the next month's API
+    const now = new Date();
+    let y = now.getFullYear(), m = now.getMonth() + 1;
+    // Look for the next period starting after today
+    let found = null;
+    for (let i = 0; i < 24 && !found; i++) {
+      try {
+        const data = await api(`/roses/${state.currentRoseId}/month?year=${y}&month=${m}`);
+        if (data.period_start > new Date().toISOString().slice(0, 10)) {
+          found = data.period_start;
+        }
+      } catch (e) { /* excluded month, skip */ }
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    hint.textContent = found ? `Od najbliższej zmiany: ${found}` : '';
+  } else if (when === 'custom') {
+    if (!customInput.value) customInput.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+async function savePosition(e) {
+  e.preventDefault();
+  const personSelect = document.getElementById('edit-position-person');
+  const personId = personSelect.value ? parseInt(personSelect.value) : null;
+  const when = document.getElementById('edit-position-when').value;
+
+  let effectiveFrom;
+  if (when === 'today') {
+    effectiveFrom = new Date().toISOString().slice(0, 10);
+  } else if (when === 'custom') {
+    effectiveFrom = document.getElementById('edit-position-custom-date').value;
+  } else {
+    // 'next' - find the upcoming change
+    const now = new Date();
+    let y = now.getFullYear(), m = now.getMonth() + 1;
+    effectiveFrom = null;
+    for (let i = 0; i < 24 && !effectiveFrom; i++) {
+      try {
+        const data = await api(`/roses/${state.currentRoseId}/month?year=${y}&month=${m}`);
+        if (data.period_start > new Date().toISOString().slice(0, 10)) {
+          effectiveFrom = data.period_start;
+        }
+      } catch (e) { /* excluded month */ }
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    if (!effectiveFrom) {
+      alert('Nie udało się ustalić daty następnej zmiany.');
+      return;
+    }
+  }
+
+  try {
+    await api(`/roses/${state.currentRoseId}/composition/${state.editingPosition}`, {
+      method: 'PUT',
+      body: JSON.stringify({ person_id: personId, effective_from: effectiveFrom }),
+    });
+    closeModal('modal-edit-position');
+    await loadMonth();
+  } catch (err) {
+    alert('Błąd: ' + err.message);
+  }
+}
+
+// ============ TAB: COMPOSITION ============
+async function loadComposition() {
+  const at = document.getElementById('composition-date').value;
+  const box = document.getElementById('composition-table');
+  box.innerHTML = '<div class="p-4 text-stone-500 text-sm">Ładowanie...</div>';
+  try {
+    const comp = await api(`/roses/${state.currentRoseId}/composition?at=${at}`);
+    let html = `
+      <table class="w-full text-sm">
+        <thead><tr class="bg-emerald-100"><th class="px-2 py-2 w-12 text-center">Lp.</th><th class="px-3 py-2 text-left">Osoba</th></tr></thead>
+        <tbody>
+    `;
+    for (const e of comp) {
+      html += `
+        <tr class="border-t border-stone-100">
+          <td class="px-2 py-2 text-center text-stone-500">${e.position}</td>
+          <td class="px-3 py-2">${e.person_name ? escapeHtml(e.person_name) : '<span class="text-stone-400 italic">— wolne —</span>'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = `<div class="p-4 text-red-600 text-sm">${e.message}</div>`;
+  }
+}
+
+// ============ TAB: HISTORY ============
+async function loadHistory() {
+  const pos = parseInt(document.getElementById('history-position').value);
+  const box = document.getElementById('history-table');
+  box.innerHTML = '<div class="p-4 text-stone-500 text-sm">Ładowanie...</div>';
+  try {
+    const hist = await api(`/roses/${state.currentRoseId}/positions/${pos}/history`);
+    if (hist.length === 0) {
+      box.innerHTML = '<div class="p-4 text-stone-500 text-sm">Brak historii dla tej pozycji.</div>';
+      return;
+    }
+    let html = `
+      <table class="w-full text-sm">
+        <thead><tr class="bg-emerald-100">
+          <th class="px-3 py-2 text-left">Osoba</th>
+          <th class="px-3 py-2 text-left">Od</th>
+          <th class="px-3 py-2 text-left">Do</th>
+        </tr></thead>
+        <tbody>
+    `;
+    for (const h of hist) {
+      const name = h.person_name || '<span class="text-stone-400 italic">— wolne —</span>';
+      const to = h.valid_to || '<span class="text-emerald-600">obecnie</span>';
+      html += `
+        <tr class="border-t border-stone-100">
+          <td class="px-3 py-2 font-medium">${name}</td>
+          <td class="px-3 py-2">${h.valid_from}</td>
+          <td class="px-3 py-2">${to}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = `<div class="p-4 text-red-600 text-sm">${e.message}</div>`;
+  }
+}
+
+// ============ TAB: PNG ============
+function loadPng() {
+  const y = document.getElementById('png-year').value;
+  const m = document.getElementById('png-month').value;
+  const yt = document.getElementById('png-year-to').value;
+  const mt = document.getElementById('png-month-to').value;
+  let url = `${API}/roses/${state.currentRoseId}/png?year=${y}&month=${m}`;
+  if (yt && mt) url += `&year_to=${yt}&month_to=${mt}`;
+  const box = document.getElementById('png-result');
+  box.innerHTML = `<div class="text-center"><img src="${url}" alt="Róża" class="mx-auto max-w-full" /></div>`;
+  const link = document.getElementById('png-download');
+  link.href = url;
+  link.download = `roza_${y}_${String(m).padStart(2,'0')}.png`;
+  link.classList.remove('hidden');
+}
+
+// ============ TAB: SETTINGS ============
+function loadSettings() {
+  const r = state.currentRose;
+  const f = document.getElementById('settings-form');
+  f.name.value = r.name;
+  f.subtitle.value = r.subtitle || '';
+  f.start_date.value = r.start_date;
+  f.change_day.value = r.change_day;
+
+  const checksBox = document.getElementById('excluded-months-checks');
+  checksBox.innerHTML = '';
+  for (let m = 1; m <= 12; m++) {
+    const checked = r.excluded_months.includes(m) ? 'checked' : '';
+    checksBox.insertAdjacentHTML('beforeend', `
+      <label class="flex items-center gap-1 text-sm">
+        <input type="checkbox" value="${m}" ${checked} />
+        ${MONTH_NAMES[m].substring(0, 3)}
+      </label>
+    `);
+  }
+  loadPersons();
+}
+
+async function saveSettings(e) {
+  e.preventDefault();
+  const f = e.target;
+  const excluded = Array.from(document.querySelectorAll('#excluded-months-checks input:checked')).map(c => parseInt(c.value));
+  const data = {
+    name: f.name.value,
+    subtitle: f.subtitle.value,
+    start_date: f.start_date.value,
+    change_day: parseInt(f.change_day.value),
+    excluded_months: excluded,
+  };
+  try {
+    state.currentRose = await api(`/roses/${state.currentRoseId}`, { method: 'PUT', body: JSON.stringify(data) });
+    document.getElementById('rose-name').textContent = state.currentRose.name;
+    document.getElementById('rose-subtitle').textContent = state.currentRose.subtitle || '';
+    alert('Zapisano.');
+  } catch (err) {
+    alert('Błąd: ' + err.message);
+  }
+}
+
+async function deleteRose() {
+  if (!confirm('Na pewno usunąć tę różę? Wszystkie dane (osoby, historia) zostaną utracone.')) return;
+  try {
+    await api(`/roses/${state.currentRoseId}`, { method: 'DELETE' });
+    backToList();
+  } catch (e) {
+    alert('Błąd: ' + e.message);
+  }
+}
+
+// ============ PEOPLE ============
+async function loadPersons() {
+  state.persons = await api(`/roses/${state.currentRoseId}/persons?include_inactive=false`);
+  const box = document.getElementById('persons-list');
+  if (state.persons.length === 0) {
+    box.innerHTML = '<div class="text-sm text-stone-500">Brak osób. Dodaj pierwszą.</div>';
+    return;
+  }
+  box.innerHTML = state.persons.map(p => `
+    <div class="flex items-center justify-between px-3 py-2 bg-stone-50 rounded text-sm">
+      <span>${escapeHtml(p.full_name)}</span>
+      <button onclick="deletePerson(${p.id})" class="text-red-600 text-xs hover:underline">usuń</button>
+    </div>
+  `).join('');
+}
+
+async function addPerson() {
+  const input = document.getElementById('new-person-name');
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    await api(`/roses/${state.currentRoseId}/persons`, {
+      method: 'POST',
+      body: JSON.stringify({ full_name: name }),
+    });
+    input.value = '';
+    await loadPersons();
+  } catch (e) {
+    alert('Błąd: ' + e.message);
+  }
+}
+
+async function deletePerson(id) {
+  if (!confirm('Usunąć osobę? (Historia jej obsadzeń zostanie zachowana.)')) return;
+  try {
+    await api(`/persons/${id}`, { method: 'DELETE' });
+    await loadPersons();
+  } catch (e) {
+    alert('Błąd: ' + e.message);
+  }
+}
+
+// ============ BACK ============
+function backToList() {
+  state.currentRoseId = null;
+  state.currentRose = null;
+  document.getElementById('view-rose').classList.add('hidden');
+  document.getElementById('view-admin').classList.add('hidden');
+  document.getElementById('view-list').classList.remove('hidden');
+  document.getElementById('back-to-list-btn').classList.add('hidden');
+  document.getElementById('header-title').textContent = 'Róże Różańcowe';
+  loadRoses();
+}
+document.getElementById('back-to-list-btn').onclick = backToList;
+
+// Custom date toggle for position edit
+document.getElementById('edit-position-when').addEventListener('change', updateEditWhenHint);
+
+// ============ AUTH ============
+
+let currentUser = null;
+
+async function checkAuth() {
+  try {
+    const me = await api('/auth/me');
+    currentUser = me;
+    return me;
+  } catch (e) {
+    currentUser = null;
+    return null;
+  }
+}
+
+function showAuthError(msg) {
+  const box = document.getElementById('auth-error');
+  box.textContent = msg;
+  box.classList.remove('hidden');
+}
+function clearAuthError() {
+  document.getElementById('auth-error').classList.add('hidden');
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  clearAuthError();
+  const f = e.target;
+  try {
+    const me = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: f.email.value, password: f.password.value }),
+    });
+    currentUser = me;
+    routeAfterAuth();
+  } catch (err) {
+    showAuthError(err.message);
+  }
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  clearAuthError();
+  const f = e.target;
+  try {
+    const me = await api('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: f.email.value,
+        password: f.password.value,
+        full_name: f.full_name.value,
+      }),
+    });
+    currentUser = me;
+    routeAfterAuth();
+  } catch (err) {
+    showAuthError(err.message);
+  }
+}
+
+async function doLogout() {
+  try { await api('/auth/logout', { method: 'POST' }); } catch (e) {}
+  currentUser = null;
+  routeAfterAuth();
+}
+
+function routeAfterAuth() {
+  // Hide everything
+  document.querySelectorAll('#view-auth, #view-pending, #view-list, #view-rose, #view-admin')
+    .forEach(el => el.classList.add('hidden'));
+  document.getElementById('back-to-list-btn').classList.add('hidden');
+  document.getElementById('admin-panel-btn').classList.add('hidden');
+
+  if (!currentUser) {
+    document.getElementById('view-auth').classList.remove('hidden');
+    document.getElementById('user-info').classList.add('hidden');
+    document.getElementById('logout-btn').classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('user-info').textContent =
+    currentUser.email + (currentUser.is_admin ? ' (admin)' : '');
+  document.getElementById('user-info').classList.remove('hidden');
+  document.getElementById('logout-btn').classList.remove('hidden');
+
+  if (!currentUser.is_approved) {
+    document.getElementById('pending-email').textContent = currentUser.email;
+    document.getElementById('view-pending').classList.remove('hidden');
+    return;
+  }
+
+  if (currentUser.is_admin) {
+    document.getElementById('admin-panel-btn').classList.remove('hidden');
+  }
+
+  document.getElementById('view-list').classList.remove('hidden');
+  loadRoses();
+}
+
+// Login/register tabs
+document.getElementById('auth-tab-login').onclick = () => {
+  document.getElementById('auth-tab-login').classList.add('active');
+  document.getElementById('auth-tab-register').classList.remove('active');
+  document.getElementById('auth-login-form').classList.remove('hidden');
+  document.getElementById('auth-register-form').classList.add('hidden');
+  clearAuthError();
+};
+document.getElementById('auth-tab-register').onclick = () => {
+  document.getElementById('auth-tab-register').classList.add('active');
+  document.getElementById('auth-tab-login').classList.remove('active');
+  document.getElementById('auth-register-form').classList.remove('hidden');
+  document.getElementById('auth-login-form').classList.add('hidden');
+  clearAuthError();
+};
+
+document.getElementById('logout-btn').onclick = doLogout;
+
+// ============ ADMIN PANEL ============
+
+document.getElementById('admin-panel-btn').onclick = () => {
+  document.querySelectorAll('#view-list, #view-rose, #view-admin')
+    .forEach(el => el.classList.add('hidden'));
+  document.getElementById('back-to-list-btn').classList.remove('hidden');
+  document.getElementById('view-admin').classList.remove('hidden');
+  loadAdminPanel();
+};
+
+async function loadAdminPanel() {
+  const pending = await api('/admin/users/pending');
+  const all = await api('/admin/users');
+
+  const pBox = document.getElementById('admin-pending-list');
+  if (pending.length === 0) {
+    pBox.innerHTML = '<div class="text-sm text-stone-500">Brak kont oczekujących.</div>';
+  } else {
+    pBox.innerHTML = pending.map(u => `
+      <div class="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
+        <div>
+          <div class="font-medium text-sm">${escapeHtml(u.email)}</div>
+          <div class="text-xs text-stone-500">${escapeHtml(u.full_name || '')}</div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="approveUser(${u.id})" class="text-sm bg-emerald-600 text-white px-3 py-1 rounded hover:bg-emerald-700">Zatwierdź</button>
+          <button onclick="rejectUser(${u.id})" class="text-sm text-red-600 hover:underline">Odrzuć</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const aBox = document.getElementById('admin-all-list');
+  aBox.innerHTML = all.map(u => `
+    <div class="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
+      <div>
+        <div class="font-medium text-sm">${escapeHtml(u.email)} ${u.is_admin ? '<span class="text-xs text-amber-700">[admin]</span>' : ''}</div>
+        <div class="text-xs text-stone-500">${escapeHtml(u.full_name || '')}</div>
+      </div>
+      <div class="text-xs ${u.is_approved ? 'text-emerald-700' : 'text-amber-700'}">
+        ${u.is_approved ? '✓ zatwierdzony' : '⏳ oczekuje'}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function approveUser(userId) {
+  try { await api(`/admin/users/${userId}/approve`, { method: 'POST' }); await loadAdminPanel(); }
+  catch (e) { alert('Błąd: ' + e.message); }
+}
+async function rejectUser(userId) {
+  if (!confirm('Odrzucić to konto? (usunięcie konta nie zatwierdzonego)')) return;
+  try { await api(`/admin/users/${userId}`, { method: 'DELETE' }); await loadAdminPanel(); }
+  catch (e) { alert('Błąd: ' + e.message); }
+}
+
+// ============ START ============
+// Sprawdź czy jesteśmy zalogowani i pokaż odpowiedni widok
+(async () => {
+  await checkAuth();
+  routeAfterAuth();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Railway.app configuration
+# Docs: https://docs.railway.app/reference/config-as-code
+
+[build]
+# Railway will auto-detect the Dockerfile, but we set it explicitly.
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Start command comes from Dockerfile CMD, but can be overridden:
+# startCommand = "python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+
+# Restart policy on crash - "ON_FAILURE" or "ALWAYS"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Healthcheck - Railway probes the app for readiness
+healthcheckPath = "/docs"
+healthcheckTimeout = 30
