@@ -305,6 +305,22 @@
         <select id="edit-position-person" class="w-full border border-stone-300 rounded px-3 py-1.5">
           <option value="">(wolne miejsce)</option>
         </select>
+        <!-- Quick-add: pozwala dodać nową osobę bez wychodzenia do Ustawień -->
+        <div class="mt-2 flex gap-2">
+          <input
+            type="text"
+            id="edit-position-quickadd-name"
+            placeholder="lub wpisz nowe Nazwisko Imię..."
+            class="flex-1 border border-stone-300 rounded px-3 py-1.5 text-sm"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddPerson();}" />
+          <button
+            type="button"
+            onclick="quickAddPerson()"
+            class="bg-stone-700 text-white px-3 py-1.5 rounded text-sm hover:bg-stone-800 whitespace-nowrap">
+            + Dodaj
+          </button>
+        </div>
+        <p id="edit-position-quickadd-msg" class="text-xs mt-1 hidden"></p>
       </div>
       <div>
         <label class="block text-xs text-stone-600 mb-1">Od kiedy ma obowiązywać</label>
@@ -626,6 +642,10 @@ async function openEditPosition(position) {
   whenSel.onchange = updateEditWhenHint;
   await updateEditWhenHint();
 
+  // Reset quick-add field and hide any previous message.
+  document.getElementById('edit-position-quickadd-name').value = '';
+  document.getElementById('edit-position-quickadd-msg').classList.add('hidden');
+
   showModal('modal-edit-position');
 }
 
@@ -699,6 +719,51 @@ async function savePosition(e) {
     await loadMonth();
   } catch (err) {
     alert('Błąd: ' + err.message);
+  }
+}
+
+// Adds a new person to the current rose without leaving the position-edit modal.
+// On success: refreshes the people list, selects the new person in the dropdown,
+// clears the input, and shows a brief confirmation message.
+async function quickAddPerson() {
+  const input = document.getElementById('edit-position-quickadd-name');
+  const msg = document.getElementById('edit-position-quickadd-msg');
+  const name = input.value.trim();
+
+  function showMsg(text, isError) {
+    msg.textContent = text;
+    msg.className = 'text-xs mt-1 ' + (isError ? 'text-red-600' : 'text-emerald-700');
+    msg.classList.remove('hidden');
+  }
+
+  if (!name) {
+    showMsg('Wpisz nazwisko i imię.', true);
+    input.focus();
+    return;
+  }
+
+  try {
+    const created = await api(`/roses/${state.currentRoseId}/persons`, {
+      method: 'POST',
+      body: JSON.stringify({ full_name: name }),
+    });
+
+    // Refresh the persons cache and rebuild the dropdown with the new entry selected.
+    state.persons = await api(`/roses/${state.currentRoseId}/persons?include_inactive=false`);
+    const sel = document.getElementById('edit-position-person');
+    sel.innerHTML = '<option value="">(wolne miejsce)</option>';
+    for (const p of state.persons) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.full_name;
+      if (p.id === created.id) opt.selected = true;
+      sel.appendChild(opt);
+    }
+
+    input.value = '';
+    showMsg(`Dodano: ${created.full_name}. Kliknij „Zapisz”, aby przypisać do tej pozycji.`, false);
+  } catch (err) {
+    showMsg('Błąd: ' + err.message, true);
   }
 }
 
